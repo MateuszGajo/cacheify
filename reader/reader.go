@@ -7,17 +7,17 @@ import (
 	"main/protocol"
 )
 
-func ProcessData(reader io.Reader) ([]string, error) {
+func ProcessData(reader io.Reader) ([][]string, error) {
 	data, err := Read(reader)
 
 	if err != nil {
-		return []string{}, err
+		return [][]string{}, err
 	}
 
 	processedData, err := process(data)
 
 	if err != nil {
-		return []string{}, err
+		return [][]string{}, err
 	}
 
 	return processedData, nil
@@ -37,33 +37,35 @@ func Read(reader io.Reader) (string, error) {
 	return string(data), nil
 }
 
-func process(data string) (res []string, err error) {
+func process(data string) (resp [][]string, err error) {
 
 	if len(data) == 0 {
 		fmt.Print("no data to process")
-		return []string{}, nil
+		return [][]string{}, nil
 	}
 
 	currentInput := data
 
 	for currentInput != "" {
 		operator := currentInput[0]
+		commands := []string{}
 		switch operator {
 		case '$':
-			res, currentInput, err = protocol.ReadBulkString(currentInput)
+			commands, currentInput, err = protocol.ReadBulkString(currentInput)
 		case '*':
-			res, currentInput, err = protocol.ReadArray(currentInput)
+			commands, currentInput, err = protocol.ReadArray(currentInput)
 		case '+':
-			res, currentInput, err = protocol.ReadSimpleString(currentInput)
+			commands, currentInput, err = protocol.ReadSimpleString(currentInput)
 		default:
 			fmt.Errorf("Operator: %v not supported", operator)
 			err = errors.New("Operation not supported")
 		}
+		resp = append(resp, commands)
 
 		if err != nil {
 			break
 		}
 	}
 
-	return res, err
+	return resp, err
 }

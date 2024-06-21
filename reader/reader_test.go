@@ -19,13 +19,11 @@ func TestProcessSingleCommand(t *testing.T) {
 
 func TestProcessMultipleCommand(t *testing.T) {
 	input := []byte("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n$3\r\nxyz\r\n")
-	res, err := ProcessData(bytes.NewReader(input))
-
-	t.Error(res, err)
+	res, _ := ProcessData(bytes.NewReader(input))
 
 	expectedRes := "xyz"
 
-	if res[2] != expectedRes {
-		t.Errorf("expected:%q, got:%q", expectedRes, res)
+	if res[1][0] != expectedRes {
+		t.Errorf("expected:%q, got:%q", expectedRes, res[1][0])
 	}
 }
