@@ -12,8 +12,8 @@ func TestProcessSingleCommand(t *testing.T) {
 
 	expectedRes := []string{"hello", "world"}
 
-	if !reflect.DeepEqual(expectedRes, res) {
-		t.Errorf("expected:%q, got:%q", expectedRes, res)
+	if !reflect.DeepEqual(expectedRes, res[0]) {
+		t.Errorf("expected:%q, got:%q", expectedRes, res[0])
 	}
 }
 

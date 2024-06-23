@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"main/utils"
 	"reflect"
 	"testing"
 )
@@ -48,6 +49,51 @@ func TestBulkString(t *testing.T) {
 
 	if resp[0] != expectedRes {
 		t.Fatalf("Expected:%q, got:%q", expectedRes, resp)
+	}
+}
+
+func TestBulkInvalidMsgLongerThanDeclared(t *testing.T) {
+	input := "$5\r\nhelloa\r\n"
+	resp, _, err := ReadBulkString(input)
+
+	if err == nil {
+		t.Fatalf("Should return error for input:%q, we got res :%q", input, resp)
+	}
+}
+
+func TestBulkInvalidMsgLength(t *testing.T) {
+	input := "$5a\r\nhelloa\r\n"
+	_, _, err := ReadBulkString(input)
+
+	expectedErrType := utils.InvalidCharInMsgLength
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
+	}
+}
+
+func TestBulkInvalidEndingDelimiter(t *testing.T) {
+	input := "$5\r\nhello\r\\2"
+	_, _, err := ReadBulkString(input)
+
+	expectedErrType := utils.WrongCommandFormat
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
+	}
+
+}
+
+func TestBulkNotFullMessage(t *testing.T) {
+	input := "$5\r\nhello"
+	_, rest, _ := ReadBulkString(input)
+
+	expectedRes := "$5\r\nhello"
+
+	if rest != expectedRes {
+		t.Fatalf("Expected:%q, got:%q", expectedRes, rest)
 	}
 }
 

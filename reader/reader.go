@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"main/protocol"
+	"reflect"
 )
 
 func ProcessData(reader io.Reader) ([][]string, error) {
@@ -49,6 +50,9 @@ func process(data string) (resp [][]string, err error) {
 	for currentInput != "" {
 		operator := currentInput[0]
 		commands := []string{}
+		fmt.Println("hello")
+		fmt.Printf("%q", currentInput)
+		fmt.Println(operator)
 		switch operator {
 		case '$':
 			commands, currentInput, err = protocol.ReadBulkString(currentInput)
@@ -63,8 +67,12 @@ func process(data string) (resp [][]string, err error) {
 		resp = append(resp, commands)
 
 		if err != nil {
-			break
+			fmt.Print("insideErrro?", err)
+			fmt.Print(reflect.TypeOf(err))
+			return resp, err
 		}
+		fmt.Println("end")
+		fmt.Println(resp)
 	}
 
 	return resp, err

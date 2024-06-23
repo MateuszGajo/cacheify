@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"fmt"
 	"main/config"
 	"main/utils"
 	"strconv"
@@ -15,26 +16,57 @@ func ReadSimpleString(input string) ([]string, string, error) {
 		return []string{}, "", errors.New("Can read simple string wrong data: " + input)
 	}
 
-	return []string{input[1:endIndex]}, input[endIndex+len(config.CLRF):], nil
+	return []string{input[1:endIndex]}, input[endIndex+config.CLRFLength:], nil
 }
 
+// $5\r\nhello\r\n
 func ReadBulkString(input string) ([]string, string, error) {
-	lengthEndIndex := strings.Index(input, config.CLRF)
-
-	if lengthEndIndex == -1 {
-		return []string{}, "", errors.New("Can read simple string wrong data: " + input)
+	msgLengthEndIndex := 1
+	for input[msgLengthEndIndex] != byte(config.CLRF[0]) {
+		if input[msgLengthEndIndex] < '0' || input[msgLengthEndIndex] > '9' {
+			return []string{}, "", &utils.AppError{
+				ErrType: utils.InvalidCharInMsgLength,
+				Msg:     fmt.Sprintf("Char: %q, its not a number", input[msgLengthEndIndex]),
+			}
+		}
+		if msgLengthEndIndex < len(input)-1 {
+			msgLengthEndIndex += 1
+		} else {
+			return []string{}, input, nil
+		}
 	}
 
-	length, err := strconv.Atoi(input[1:lengthEndIndex])
+	stringNumber := input[1:msgLengthEndIndex]
+	msgLength, err := strconv.Atoi(stringNumber)
 
 	if err != nil {
-		return []string{}, "", errors.New("Couldnt convert input length: " + input)
+		return []string{}, "", &utils.AppError{
+			ErrType: utils.CannotConvertStringToNumber,
+			Msg:     fmt.Sprintf("Cant conver't:%q to number", stringNumber),
+		}
 	}
 
-	wordStartIndex := lengthEndIndex + len(config.CLRF)
-	wordEndIndex := wordStartIndex + length
+	wordStartIndex := msgLengthEndIndex + len(config.CLRF)
+	wordEndIndex := wordStartIndex + msgLength
+	if len(input) < wordEndIndex {
+		return []string{}, input, nil
+	}
 
-	return []string{input[wordStartIndex:wordEndIndex]}, input[wordEndIndex+len(config.CLRF):], nil
+	word := input[wordStartIndex:wordEndIndex]
+	if len(input) < wordEndIndex+config.CLRFLength {
+		return []string{}, input, nil
+	}
+
+	endCommandIndex := wordEndIndex + config.CLRFLength
+
+	if input[wordEndIndex:endCommandIndex] != config.CLRF {
+		return []string{}, "", &utils.AppError{
+			ErrType: utils.WrongCommandFormat,
+			Msg:     fmt.Sprintf("Command should end up with: %q, insted we got: %q", config.CLRF, input[wordEndIndex:endCommandIndex]),
+		}
+	}
+	fmt.Println("hello we read")
+	return []string{word}, input[endCommandIndex:], nil
 }
 
 // *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
@@ -55,7 +87,7 @@ func ReadArray(input string) ([]string, string, error) {
 
 	numberOfCLRF := arrayLength*2 + 1
 	arrayInputEndIndex := utils.FindNOccurance(input, config.CLRF, numberOfCLRF)
-	arrayInput := input[:arrayInputEndIndex+len(config.CLRF)]
+	arrayInput := input[:arrayInputEndIndex+config.CLRFLength]
 
 	items := strings.Split(arrayInput, config.CLRF)
 
@@ -65,5 +97,5 @@ func ReadArray(input string) ([]string, string, error) {
 		resp = append(resp, items[i])
 	}
 
-	return resp, input[arrayInputEndIndex+len(config.CLRF):], nil
+	return resp, input[arrayInputEndIndex+config.CLRFLength:], nil
 }
