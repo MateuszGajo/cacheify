@@ -1,26 +1,17 @@
 package protocol
 
 import (
-	"errors"
 	"fmt"
 	"main/config"
 	"main/utils"
 	"strconv"
-	"strings"
 )
 
-func ReadSimpleString(input string) ([]string, string, error) {
-	endIndex := strings.Index(input, config.CLRF)
-
-	if endIndex == -1 {
-		return []string{}, "", errors.New("Can read simple string wrong data: " + input)
+func ReadBulkString(input string) ([]string, string, error) {
+	if len(input) <= 1 {
+		return []string{}, input, nil
 	}
 
-	return []string{input[1:endIndex]}, input[endIndex+config.CLRFLength:], nil
-}
-
-// $5\r\nhello\r\n
-func ReadBulkString(input string) ([]string, string, error) {
 	msgLengthEndIndex := 1
 	for input[msgLengthEndIndex] != byte(config.CLRF[0]) {
 		if input[msgLengthEndIndex] < '0' || input[msgLengthEndIndex] > '9' {
@@ -48,6 +39,16 @@ func ReadBulkString(input string) ([]string, string, error) {
 
 	wordStartIndex := msgLengthEndIndex + len(config.CLRF)
 	wordEndIndex := wordStartIndex + msgLength
+
+	if wordStartIndex > len(input) {
+		return []string{}, input, nil
+	} else if input[msgLengthEndIndex:wordStartIndex] != config.CLRF {
+		return []string{}, "", &utils.AppError{
+			ErrType: utils.WrongCommandFormat,
+			Msg:     fmt.Sprintf("Wrong format, expected CLRF after msg length for input: %q", input),
+		}
+	}
+
 	if len(input) < wordEndIndex {
 		return []string{}, input, nil
 	}
@@ -65,37 +66,65 @@ func ReadBulkString(input string) ([]string, string, error) {
 			Msg:     fmt.Sprintf("Command should end up with: %q, insted we got: %q", config.CLRF, input[wordEndIndex:endCommandIndex]),
 		}
 	}
-	fmt.Println("hello we read")
+
 	return []string{word}, input[endCommandIndex:], nil
 }
 
-// *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
 func ReadArray(input string) ([]string, string, error) {
-	if len(input) < 2 {
-		return []string{}, "", errors.New("Data need to have at least lenth of 2: " + input)
+
+	if len(input) <= 1 {
+		return []string{}, input, nil
 	}
 
-	endOfLength := strings.Index(input, config.CLRF)
-	if endOfLength == -1 {
-		return []string{}, "", errors.New("Couldnt find CLRF for array length on input: " + input)
+	msgLengthEndIndex := 1
+	for input[msgLengthEndIndex] != byte(config.CLRF[0]) {
+		if input[msgLengthEndIndex] < '0' || input[msgLengthEndIndex] > '9' {
+			return []string{}, "", &utils.AppError{
+				ErrType: utils.InvalidCharInMsgLength,
+				Msg:     fmt.Sprintf("Char: %q, its not a number", input[msgLengthEndIndex]),
+			}
+		}
+		if msgLengthEndIndex < len(input)-1 {
+			msgLengthEndIndex += 1
+		} else {
+			return []string{}, input, nil
+		}
 	}
 
-	arrayLength, err := strconv.Atoi(input[1:endOfLength])
+	stringNumber := input[1:msgLengthEndIndex]
+	arrayLength, err := strconv.Atoi(stringNumber)
+
 	if err != nil {
-		return []string{}, "", errors.New("Couldnt convert number of array element to number on input: " + input)
+		return []string{}, "", &utils.AppError{
+			ErrType: utils.CannotConvertStringToNumber,
+			Msg:     fmt.Sprintf("Cant convert: %q to number", stringNumber),
+		}
 	}
 
-	numberOfCLRF := arrayLength*2 + 1
-	arrayInputEndIndex := utils.FindNOccurance(input, config.CLRF, numberOfCLRF)
-	arrayInput := input[:arrayInputEndIndex+config.CLRFLength]
+	bulkStringStartIndex := msgLengthEndIndex + config.CLRFLength
 
-	items := strings.Split(arrayInput, config.CLRF)
-
-	resp := make([]string, 0, arrayLength)
-
-	for i := 2; i < len(items); i += 2 {
-		resp = append(resp, items[i])
+	if bulkStringStartIndex > len(input) {
+		return []string{}, input, nil
+	} else if input[msgLengthEndIndex:bulkStringStartIndex] != config.CLRF {
+		return []string{}, "", &utils.AppError{
+			ErrType: utils.WrongCommandFormat,
+			Msg:     fmt.Sprintf("Wrong format, expected CLRF after msg length for input: %q", input),
+		}
 	}
 
-	return resp, input[arrayInputEndIndex+config.CLRFLength:], nil
+	currentInput := input[bulkStringStartIndex:]
+	resp := []string{}
+
+	for i := 0; i < arrayLength; i++ {
+		result, rest, err := ReadBulkString(currentInput)
+
+		if err != nil {
+			return []string{}, "", err
+		}
+
+		resp = append(resp, result...)
+		currentInput = rest
+	}
+
+	return resp, currentInput, nil
 }

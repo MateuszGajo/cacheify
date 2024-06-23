@@ -6,41 +6,6 @@ import (
 	"testing"
 )
 
-func TestSimpleString(t *testing.T) {
-	input := "+OK\r\n"
-	resp, newInput, _ := ReadSimpleString(input)
-
-	if resp[0] != "OK" {
-		t.Fatalf("Expected:%q, got:%q", "OK", resp)
-	}
-
-	if newInput != "" {
-		t.Fatalf("Exepected new input to be empty insted we got: %q", newInput)
-	}
-}
-
-func TestSimpleStringWithAnotherCommand(t *testing.T) {
-	input := "+OK\r\n+OK\r\n"
-	resp, newInput, _ := ReadSimpleString(input)
-
-	if resp[0] != "OK" {
-		t.Fatalf("Expected:%q, got:%q", "OK", resp)
-	}
-
-	if newInput != "+OK\r\n" {
-		t.Fatalf("Exepected new input to be:%q, got: %q", "+OK\r\n", newInput)
-	}
-}
-
-func TestSimpleInvalidString(t *testing.T) {
-	input := "+OK\\n"
-	resp, _, err := ReadSimpleString(input)
-
-	if err == nil {
-		t.Fatalf("Should return error insted we got response :%q", resp)
-	}
-}
-
 func TestBulkString(t *testing.T) {
 	input := "$5\r\nhello\r\n"
 	resp, _, _ := ReadBulkString(input)
@@ -73,6 +38,17 @@ func TestBulkInvalidMsgLength(t *testing.T) {
 	}
 }
 
+func TestBulkWithJustOneChar(t *testing.T) {
+	input := "$"
+	_, rest, _ := ReadBulkString(input)
+
+	expectedRes := "$"
+
+	if !(rest == expectedRes) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedRes, rest)
+	}
+}
+
 func TestBulkInvalidEndingDelimiter(t *testing.T) {
 	input := "$5\r\nhello\r\\2"
 	_, _, err := ReadBulkString(input)
@@ -94,6 +70,18 @@ func TestBulkNotFullMessage(t *testing.T) {
 
 	if rest != expectedRes {
 		t.Fatalf("Expected:%q, got:%q", expectedRes, rest)
+	}
+}
+
+func TestBulkWrondDelimiterAfterMsgLength(t *testing.T) {
+	input := "$5\rchello"
+	_, _, err := ReadBulkString(input)
+
+	expectedErrType := utils.WrongCommandFormat
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
 	}
 }
 
@@ -123,6 +111,45 @@ func TestArrayWithAnotherCommand(t *testing.T) {
 
 	if rest != "+OK\r\n+OK\r\n" {
 		t.Fatalf("Expected:%q, got:%q", "+OK\r\n+OK\r\n", rest)
+	}
+
+}
+
+func TestArrayWithInvalidMsgLength(t *testing.T) {
+	input := "*2g\r\n$5\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
+	_, _, err := ReadArray(input)
+
+	expectedErrType := utils.InvalidCharInMsgLength
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
+	}
+
+}
+
+func TestArrayWithInvalidDelimiterAfterMsgLength(t *testing.T) {
+	input := "*2\rc$5\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
+	_, _, err := ReadArray(input)
+
+	expectedErrType := utils.WrongCommandFormat
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
+	}
+
+}
+
+func TestArrayWithErrorInsideBulkString(t *testing.T) {
+	input := "*2\r\n$5insideBulkdString\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
+	_, _, err := ReadArray(input)
+
+	expectedErrType := utils.InvalidCharInMsgLength
+	errType := utils.GetErrorType(err)
+
+	if !(errType == expectedErrType) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedErrType, errType)
 	}
 
 }
