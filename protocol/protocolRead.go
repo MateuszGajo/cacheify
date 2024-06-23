@@ -7,15 +7,15 @@ import (
 	"strconv"
 )
 
-func ReadBulkString(input string) ([]string, string, error) {
+func ReadBulkString(input string) ([]string, string, string, error) {
 	if len(input) <= 1 {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	}
 
 	msgLengthEndIndex := 1
 	for input[msgLengthEndIndex] != byte(config.CLRF[0]) {
 		if input[msgLengthEndIndex] < '0' || input[msgLengthEndIndex] > '9' {
-			return []string{}, "", &utils.AppError{
+			return []string{}, "", "", &utils.AppError{
 				ErrType: utils.InvalidCharInMsgLength,
 				Msg:     fmt.Sprintf("Char: %q, its not a number", input[msgLengthEndIndex]),
 			}
@@ -23,7 +23,7 @@ func ReadBulkString(input string) ([]string, string, error) {
 		if msgLengthEndIndex < len(input)-1 {
 			msgLengthEndIndex += 1
 		} else {
-			return []string{}, input, nil
+			return []string{}, input, "", nil
 		}
 	}
 
@@ -31,7 +31,7 @@ func ReadBulkString(input string) ([]string, string, error) {
 	msgLength, err := strconv.Atoi(stringNumber)
 
 	if err != nil {
-		return []string{}, "", &utils.AppError{
+		return []string{}, "", "", &utils.AppError{
 			ErrType: utils.CannotConvertStringToNumber,
 			Msg:     fmt.Sprintf("Cant conver't:%q to number", stringNumber),
 		}
@@ -41,45 +41,45 @@ func ReadBulkString(input string) ([]string, string, error) {
 	wordEndIndex := wordStartIndex + msgLength
 
 	if wordStartIndex > len(input) {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	} else if input[msgLengthEndIndex:wordStartIndex] != config.CLRF {
-		return []string{}, "", &utils.AppError{
+		return []string{}, "", "", &utils.AppError{
 			ErrType: utils.WrongCommandFormat,
 			Msg:     fmt.Sprintf("Wrong format, expected CLRF after msg length for input: %q", input),
 		}
 	}
 
 	if len(input) < wordEndIndex {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	}
 
 	word := input[wordStartIndex:wordEndIndex]
 	if len(input) < wordEndIndex+config.CLRFLength {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	}
 
 	endCommandIndex := wordEndIndex + config.CLRFLength
 
 	if input[wordEndIndex:endCommandIndex] != config.CLRF {
-		return []string{}, "", &utils.AppError{
+		return []string{}, "", "", &utils.AppError{
 			ErrType: utils.WrongCommandFormat,
 			Msg:     fmt.Sprintf("Command should end up with: %q, insted we got: %q", config.CLRF, input[wordEndIndex:endCommandIndex]),
 		}
 	}
 
-	return []string{word}, input[endCommandIndex:], nil
+	return []string{word}, "", input[endCommandIndex:], nil
 }
 
-func ReadArray(input string) ([]string, string, error) {
+func ReadArray(input string) ([]string, string, string, error) {
 
 	if len(input) <= 1 {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	}
 
 	msgLengthEndIndex := 1
 	for input[msgLengthEndIndex] != byte(config.CLRF[0]) {
 		if input[msgLengthEndIndex] < '0' || input[msgLengthEndIndex] > '9' {
-			return []string{}, "", &utils.AppError{
+			return []string{}, "", "", &utils.AppError{
 				ErrType: utils.InvalidCharInMsgLength,
 				Msg:     fmt.Sprintf("Char: %q, its not a number", input[msgLengthEndIndex]),
 			}
@@ -87,7 +87,7 @@ func ReadArray(input string) ([]string, string, error) {
 		if msgLengthEndIndex < len(input)-1 {
 			msgLengthEndIndex += 1
 		} else {
-			return []string{}, input, nil
+			return []string{}, input, "", nil
 		}
 	}
 
@@ -95,7 +95,7 @@ func ReadArray(input string) ([]string, string, error) {
 	arrayLength, err := strconv.Atoi(stringNumber)
 
 	if err != nil {
-		return []string{}, "", &utils.AppError{
+		return []string{}, "", "", &utils.AppError{
 			ErrType: utils.CannotConvertStringToNumber,
 			Msg:     fmt.Sprintf("Cant convert: %q to number", stringNumber),
 		}
@@ -104,9 +104,9 @@ func ReadArray(input string) ([]string, string, error) {
 	bulkStringStartIndex := msgLengthEndIndex + config.CLRFLength
 
 	if bulkStringStartIndex > len(input) {
-		return []string{}, input, nil
+		return []string{}, input, "", nil
 	} else if input[msgLengthEndIndex:bulkStringStartIndex] != config.CLRF {
-		return []string{}, "", &utils.AppError{
+		return []string{}, "", "", &utils.AppError{
 			ErrType: utils.WrongCommandFormat,
 			Msg:     fmt.Sprintf("Wrong format, expected CLRF after msg length for input: %q", input),
 		}
@@ -114,17 +114,19 @@ func ReadArray(input string) ([]string, string, error) {
 
 	currentInput := input[bulkStringStartIndex:]
 	resp := []string{}
+	restData := ""
 
 	for i := 0; i < arrayLength; i++ {
-		result, rest, err := ReadBulkString(currentInput)
+		result, rest, unprocessData, err := ReadBulkString(currentInput)
 
 		if err != nil {
-			return []string{}, "", err
+			return []string{}, "", "", err
 		}
 
 		resp = append(resp, result...)
-		currentInput = rest
+		currentInput = unprocessData
+		restData = rest
 	}
 
-	return resp, currentInput, nil
+	return resp, restData, currentInput, nil
 }

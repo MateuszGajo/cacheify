@@ -8,7 +8,7 @@ import (
 
 func TestBulkString(t *testing.T) {
 	input := "$5\r\nhello\r\n"
-	resp, _, _ := ReadBulkString(input)
+	resp, _, _, _ := ReadBulkString(input)
 
 	expectedRes := "hello"
 
@@ -19,7 +19,7 @@ func TestBulkString(t *testing.T) {
 
 func TestBulkInvalidMsgLongerThanDeclared(t *testing.T) {
 	input := "$5\r\nhelloa\r\n"
-	resp, _, err := ReadBulkString(input)
+	resp, _, _, err := ReadBulkString(input)
 
 	if err == nil {
 		t.Fatalf("Should return error for input:%q, we got res :%q", input, resp)
@@ -28,7 +28,7 @@ func TestBulkInvalidMsgLongerThanDeclared(t *testing.T) {
 
 func TestBulkInvalidMsgLength(t *testing.T) {
 	input := "$5a\r\nhelloa\r\n"
-	_, _, err := ReadBulkString(input)
+	_, _, _, err := ReadBulkString(input)
 
 	expectedErrType := utils.InvalidCharInMsgLength
 	errType := utils.GetErrorType(err)
@@ -40,18 +40,18 @@ func TestBulkInvalidMsgLength(t *testing.T) {
 
 func TestBulkWithJustOneChar(t *testing.T) {
 	input := "$"
-	_, rest, _ := ReadBulkString(input)
+	_, cuttedData, _, _ := ReadBulkString(input)
 
 	expectedRes := "$"
 
-	if !(rest == expectedRes) {
-		t.Fatalf("expected error type: %v, got err:%v", expectedRes, rest)
+	if !(cuttedData == expectedRes) {
+		t.Fatalf("expected error type: %v, got err:%v", expectedRes, cuttedData)
 	}
 }
 
 func TestBulkInvalidEndingDelimiter(t *testing.T) {
 	input := "$5\r\nhello\r\\2"
-	_, _, err := ReadBulkString(input)
+	_, _, _, err := ReadBulkString(input)
 
 	expectedErrType := utils.WrongCommandFormat
 	errType := utils.GetErrorType(err)
@@ -64,18 +64,18 @@ func TestBulkInvalidEndingDelimiter(t *testing.T) {
 
 func TestBulkNotFullMessage(t *testing.T) {
 	input := "$5\r\nhello"
-	_, rest, _ := ReadBulkString(input)
+	_, cuttedData, _, _ := ReadBulkString(input)
 
 	expectedRes := "$5\r\nhello"
 
-	if rest != expectedRes {
-		t.Fatalf("Expected:%q, got:%q", expectedRes, rest)
+	if cuttedData != expectedRes {
+		t.Fatalf("Expected:%q, got:%q", expectedRes, cuttedData)
 	}
 }
 
 func TestBulkWrondDelimiterAfterMsgLength(t *testing.T) {
 	input := "$5\rchello"
-	_, _, err := ReadBulkString(input)
+	_, _, _, err := ReadBulkString(input)
 
 	expectedErrType := utils.WrongCommandFormat
 	errType := utils.GetErrorType(err)
@@ -87,18 +87,18 @@ func TestBulkWrondDelimiterAfterMsgLength(t *testing.T) {
 
 func TestBulkStringWithAnotherCommand(t *testing.T) {
 	input := "$5\r\nhello\r\n+OK\r\n"
-	_, rest, _ := ReadBulkString(input)
+	_, _, unprocessData, _ := ReadBulkString(input)
 
 	expectedRes := "+OK\r\n"
 
-	if rest != expectedRes {
-		t.Fatalf("Expected:%q, got:%q", expectedRes, rest)
+	if unprocessData != expectedRes {
+		t.Fatalf("Expected:%q, got:%q", expectedRes, unprocessData)
 	}
 }
 
 func TestArray(t *testing.T) {
 	input := "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"
-	resp, _, _ := ReadArray(input)
+	resp, _, _, _ := ReadArray(input)
 
 	if !reflect.DeepEqual(resp, []string{"hello", "world"}) {
 		t.Fatalf("Expected:%q, got:%q", []string{"hello", "world"}, resp)
@@ -107,17 +107,17 @@ func TestArray(t *testing.T) {
 
 func TestArrayWithAnotherCommand(t *testing.T) {
 	input := "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
-	_, rest, _ := ReadArray(input)
+	_, _, unprocessData, _ := ReadArray(input)
 
-	if rest != "+OK\r\n+OK\r\n" {
-		t.Fatalf("Expected:%q, got:%q", "+OK\r\n+OK\r\n", rest)
+	if unprocessData != "+OK\r\n+OK\r\n" {
+		t.Fatalf("Expected:%q, got:%q", "+OK\r\n+OK\r\n", unprocessData)
 	}
 
 }
 
 func TestArrayWithInvalidMsgLength(t *testing.T) {
 	input := "*2g\r\n$5\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
-	_, _, err := ReadArray(input)
+	_, _, _, err := ReadArray(input)
 
 	expectedErrType := utils.InvalidCharInMsgLength
 	errType := utils.GetErrorType(err)
@@ -130,7 +130,7 @@ func TestArrayWithInvalidMsgLength(t *testing.T) {
 
 func TestArrayWithInvalidDelimiterAfterMsgLength(t *testing.T) {
 	input := "*2\rc$5\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
-	_, _, err := ReadArray(input)
+	_, _, _, err := ReadArray(input)
 
 	expectedErrType := utils.WrongCommandFormat
 	errType := utils.GetErrorType(err)
@@ -143,7 +143,7 @@ func TestArrayWithInvalidDelimiterAfterMsgLength(t *testing.T) {
 
 func TestArrayWithErrorInsideBulkString(t *testing.T) {
 	input := "*2\r\n$5insideBulkdString\r\nhello\r\n$5\r\nworld\r\n+OK\r\n+OK\r\n"
-	_, _, err := ReadArray(input)
+	_, _, _, err := ReadArray(input)
 
 	expectedErrType := utils.InvalidCharInMsgLength
 	errType := utils.GetErrorType(err)

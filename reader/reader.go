@@ -7,20 +7,20 @@ import (
 	"main/protocol"
 )
 
-func ProcessData(reader io.Reader) ([][]string, error) {
+func ProcessData(reader io.Reader) ([][]string, string, error) {
 	data, err := Read(reader)
 
 	if err != nil {
-		return [][]string{}, err
+		return [][]string{}, "", err
 	}
 
-	processedData, err := process(data)
+	processedData, rest, err := process(data)
 
 	if err != nil {
-		return [][]string{}, err
+		return [][]string{}, "", err
 	}
 
-	return processedData, nil
+	return processedData, rest, nil
 }
 
 func Read(reader io.Reader) (string, error) {
@@ -37,23 +37,24 @@ func Read(reader io.Reader) (string, error) {
 	return string(data), nil
 }
 
-func process(data string) (resp [][]string, err error) {
+func process(data string) (resp [][]string, unprocessData string, err error) {
 
 	if len(data) == 0 {
 		fmt.Print("no data to process")
-		return [][]string{}, nil
+		return [][]string{}, unprocessData, nil
 	}
 
-	currentInput := data
+	unprocessData = data
+	cuttedData := ""
 
-	for currentInput != "" {
-		operator := currentInput[0]
+	for unprocessData != "" {
+		operator := unprocessData[0]
 		commands := []string{}
 		switch operator {
 		case '$':
-			commands, currentInput, err = protocol.ReadBulkString(currentInput)
+			commands, cuttedData, unprocessData, err = protocol.ReadBulkString(unprocessData)
 		case '*':
-			commands, currentInput, err = protocol.ReadArray(currentInput)
+			commands, cuttedData, unprocessData, err = protocol.ReadArray(unprocessData)
 		default:
 			fmt.Errorf("Operator: %v not supported", operator)
 			err = errors.New("Operation not supported")
@@ -61,9 +62,12 @@ func process(data string) (resp [][]string, err error) {
 		resp = append(resp, commands)
 
 		if err != nil {
-			return resp, err
+			return resp, cuttedData, err
+		}
+		if cuttedData != "" {
+			return resp, cuttedData, err
 		}
 	}
 
-	return resp, err
+	return resp, cuttedData, err
 }
