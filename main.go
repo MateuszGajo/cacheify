@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"main/server"
 	"os"
 	"os/signal"
@@ -15,7 +16,8 @@ func main() {
 	}()
 
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
-	<-done
 
+	<-done
+	fmt.Print("call done")
 	server.Close()
 }

@@ -2,9 +2,12 @@ package server
 
 import (
 	"fmt"
+	"io"
+	"main/reader"
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -40,27 +43,22 @@ func CreateServer(address, port string) *Server {
 }
 
 func (server *Server) RunServer() {
-
 	defer server.wg.Done()
 
 	for {
-		chanConn := make(chan net.Conn, 1)
-		go func() {
-			conn, err := server.listener.Accept()
-
-			if err != nil {
+		conn, err := server.listener.Accept()
+		if err != nil {
+			select {
+			case <-server.quit:
 				fmt.Print("problem with accepting connection", err)
 				return
+			default:
+				fmt.Print("problem with accepting connection", err)
 			}
-			chanConn <- conn
-		}()
-		select {
-		case <-server.quit:
-			return
-		case a := <-chanConn:
+		} else {
 			server.wg.Add(1)
 			go func() {
-				handleConn(a)
+				server.handleConn(conn)
 				server.wg.Done()
 			}()
 		}
@@ -76,6 +74,32 @@ func (server *Server) Close() {
 	server.wg.Wait()
 }
 
-func handleConn(conn net.Conn) {
+func (server *Server) handleConn(conn net.Conn) {
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			fmt.Errorf("Problem closing connection: %q", err)
+		}
+	}(conn)
 
+ReadLoop:
+	for {
+		select {
+		case <-server.quit:
+			return
+		default:
+			conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+			_, err := reader.Read(conn)
+			if err != nil {
+				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+					continue ReadLoop
+				}
+				if err != io.EOF {
+					fmt.Errorf("Problem reading: %q", err)
+					return
+				}
+			}
+			fmt.Print("not error", err)
+		}
+	}
 }

@@ -7,20 +7,20 @@ import (
 	"main/protocol"
 )
 
-func ProcessData(reader io.Reader) ([][]string, string, error) {
-	data, err := Read(reader)
+var dataUnprocess string
+
+func ProcessData(data string) ([][]string, error) {
+
+	input := dataUnprocess + data
+
+	processedData, rest, err := process(input)
 
 	if err != nil {
-		return [][]string{}, "", err
+		return [][]string{}, err
 	}
+	dataUnprocess = rest
 
-	processedData, rest, err := process(data)
-
-	if err != nil {
-		return [][]string{}, "", err
-	}
-
-	return processedData, rest, nil
+	return processedData, nil
 }
 
 func Read(reader io.Reader) (string, error) {
@@ -35,6 +35,17 @@ func Read(reader io.Reader) (string, error) {
 	data := buff[:n]
 
 	return string(data), nil
+}
+
+func findFirstOccurance(input string, delimiters []byte) int {
+	for i := 0; i < len(input); i++ {
+		for j := 0; j < len(delimiters); j++ {
+			if input[i] == delimiters[j] {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func process(data string) (resp [][]string, unprocessData string, err error) {
@@ -62,7 +73,13 @@ func process(data string) (resp [][]string, unprocessData string, err error) {
 		resp = append(resp, commands)
 
 		if err != nil {
-			return resp, cuttedData, err
+			// If error find start of next command or if there is not, discard all corurpted data
+			index := findFirstOccurance(unprocessData, []byte{36, 42})
+			if index == -1 {
+				unprocessData = ""
+			} else {
+				unprocessData = unprocessData[index:]
+			}
 		}
 		if cuttedData != "" {
 			return resp, cuttedData, err

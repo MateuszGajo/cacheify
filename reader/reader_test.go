@@ -1,14 +1,13 @@
 package reader
 
 import (
-	"bytes"
 	"reflect"
 	"testing"
 )
 
 func TestProcessSingleCommand(t *testing.T) {
-	input := []byte("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n")
-	res, _, _ := ProcessData(bytes.NewReader(input))
+	input := "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"
+	res, _ := ProcessData(input)
 
 	expectedRes := []string{"hello", "world"}
 
@@ -18,8 +17,8 @@ func TestProcessSingleCommand(t *testing.T) {
 }
 
 func TestProcessMultipleCommand(t *testing.T) {
-	input := []byte("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n$3\r\nxyz\r\n")
-	res, _, _ := ProcessData(bytes.NewReader(input))
+	input := "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n$3\r\nxyz\r\n"
+	res, _ := ProcessData(input)
 
 	expectedRes := "xyz"
 
@@ -28,13 +27,26 @@ func TestProcessMultipleCommand(t *testing.T) {
 	}
 }
 
-func TestProcessMultipleCommandWithOneIcomplete(t *testing.T) {
-	input := []byte("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n$3\r\nxyz\r\n$3\r")
-	_, rest, _ := ProcessData(bytes.NewReader(input))
+func TestProcessCommandInMultipleInvocation(t *testing.T) {
+	inputFirst := "$3\r\n"
+	inputSecond := "xyz\r\n"
+	ProcessData(inputFirst)
+	res, _ := ProcessData(inputSecond)
 
-	expectedRes := "$3\r"
+	expectedRes := "xyz"
 
-	if rest != expectedRes {
-		t.Errorf("expected:%q, got:%q", expectedRes, rest)
+	if res[0][0] != expectedRes {
+		t.Errorf("expected:%q, got:%q", expectedRes, res[1][0])
 	}
 }
+
+// func TestProcessMultipleCommandWithOneIcomplete(t *testing.T) {
+// 	input := "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n$3\r\nxyz\r\n$3\r"
+// 	_, rest := ProcessData(input)
+
+// 	expectedRes := "$3\r"
+
+// 	if rest != expectedRes {
+// 		t.Errorf("expected:%q, got:%q", expectedRes, rest)
+// 	}
+// }
