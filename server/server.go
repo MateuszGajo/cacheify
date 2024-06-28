@@ -1,11 +1,14 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"main/protocol"
 	"main/reader"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -89,17 +92,52 @@ ReadLoop:
 			return
 		default:
 			conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-			_, err := reader.Read(conn)
+			input, err := reader.Read(conn)
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					continue ReadLoop
 				}
 				if err != io.EOF {
-					fmt.Errorf("Problem reading: %q", err)
+					fmt.Errorf("problem reading: %q", err)
 					return
 				}
 			}
-			fmt.Print("not error", err)
+			commands, err := reader.ProcessData(input)
+
+			if err != nil {
+				fmt.Errorf("error occured while processing command: %v", err)
+				continue ReadLoop
+			}
+			err = server.executeCommand(conn, commands)
+
+			if err != nil {
+				fmt.Errorf("error occured while executing command: %v", err)
+				continue ReadLoop
+			}
 		}
 	}
+}
+
+func (server *Server) executeCommand(conn net.Conn, commands [][]string) error {
+	if len(commands) < 1 {
+		return errors.New("Command should have at least one entry")
+	}
+
+	for i := 0; i < len(commands); i++ {
+		if len(commands[i]) < 1 {
+			return errors.New("Command should have at least one entry")
+		}
+
+		commandType := Command(strings.ToUpper(commands[i][0]))
+
+		switch commandType {
+		case Echo:
+			conn.Write([]byte(protocol.WriteSimpleString("OK")))
+		default:
+			return fmt.Errorf("unsported command type: %v", commandType)
+		}
+
+	}
+
+	return nil
 }
