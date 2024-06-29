@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"main/server"
 	"os"
@@ -8,9 +9,24 @@ import (
 	"syscall"
 )
 
+type ServerArgs struct {
+	port *string
+}
+
+func getArgs() ServerArgs {
+	port := flag.String("port", "6380", "Port for cache service")
+
+	flag.Parse()
+
+	return ServerArgs{
+		port: port,
+	}
+}
+
 func main() {
 	done := make(chan os.Signal, 1)
-	server := server.CreateServer("127.0.0.1", "6380")
+	args := getArgs()
+	server := server.CreateServer("127.0.0.1", *args.port)
 	go func() {
 		server.RunServer()
 	}()

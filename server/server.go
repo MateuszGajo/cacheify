@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"main/db"
 	"main/protocol"
 	"main/reader"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,18 +24,19 @@ type Server struct {
 type Command string
 
 const (
-	Echo Command = "ECHO"
+	ECHO Command = "ECHO"
+	SET  Command = "SET"
+	GET  Command = "GET"
 )
 
 func CreateServer(address, port string) *Server {
-	fmt.Println("what we running on")
 
 	server := &Server{
 		quit: make(chan interface{}),
 	}
 
 	listener, err := net.Listen("tcp", address+":"+port)
-
+	fmt.Printf("\nServer running on %v:%v", address, port)
 	if err != nil {
 		fmt.Print("can't run server", err)
 		os.Exit(1)
@@ -47,6 +50,8 @@ func CreateServer(address, port string) *Server {
 
 func (server *Server) RunServer() {
 	defer server.wg.Done()
+
+	db.CreateDb()
 
 	for {
 		conn, err := server.listener.Accept()
@@ -129,15 +134,79 @@ func (server *Server) executeCommand(conn net.Conn, commands [][]string) error {
 		}
 
 		commandType := Command(strings.ToUpper(commands[i][0]))
+		commandArgs := commands[i][1:]
 
 		switch commandType {
-		case Echo:
-			conn.Write([]byte(protocol.WriteSimpleString("OK")))
+		case ECHO:
+			server.handleEcho(conn, commandArgs)
+		case SET:
+			server.handleSet(conn, commandArgs)
+		case GET:
+			server.handleGet(conn, commandArgs)
 		default:
-			return fmt.Errorf("unsported command type: %v", commandType)
+			conn.Write([]byte(protocol.WriteSimpleError("Unknown command: " + string(commandType))))
 		}
 
 	}
 
 	return nil
+}
+
+func (server *Server) handleEcho(conn net.Conn, args []string) {
+	msg := args[0]
+	conn.Write([]byte(protocol.WriteBulkString(msg)))
+}
+
+type ExpType string
+
+const (
+	PX ExpType = "px"
+	EX ExpType = "ex"
+)
+
+func (server *Server) handleSet(conn net.Conn, args []string) {
+	if len(args) < 2 {
+		conn.Write([]byte(protocol.WriteSimpleError("We need at least key and value in set command")))
+		return
+	}
+	key := args[0]
+	value := args[1]
+	if len(args) == 3 {
+		conn.Write([]byte(protocol.WriteSimpleError("You need to add expiration value")))
+		return
+	}
+	expMs := -1
+	if len(args) == 4 {
+		expType := ExpType(args[2])
+		expValue, err := strconv.Atoi(args[3])
+		if err != nil {
+			conn.Write([]byte(protocol.WriteSimpleError("Invalid expiry time")))
+			return
+		}
+
+		if expValue < 0 {
+			conn.Write([]byte(protocol.WriteSimpleError("Expiry time need to be greater equal 0")))
+			return
+		}
+		switch expType {
+		case PX:
+			expMs = expValue
+		case EX:
+			expMs = expValue * 1000
+		default:
+			conn.Write([]byte(protocol.WriteSimpleError(fmt.Sprintf("Exp type:%v is not supported", expType))))
+		}
+	}
+	db.Set(key, value, expMs)
+	conn.Write([]byte(protocol.WriteSimpleString("OK")))
+}
+
+func (server *Server) handleGet(conn net.Conn, args []string) {
+	val, ok := db.Get(args[0])
+
+	if !ok {
+		conn.Write([]byte(protocol.WriteBulkString("-1")))
+		return
+	}
+	conn.Write([]byte(protocol.WriteBulkString(val)))
 }
