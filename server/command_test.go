@@ -7,7 +7,28 @@ import (
 	"time"
 )
 
-func TestEchoComman(t *testing.T) {
+func TestPingCommand(t *testing.T) {
+	address := "127.0.0.1"
+	port := "6380"
+	server := createAndStartServer(address, port)
+	conn := connectToServer("tcp", address+":"+port, t)
+
+	conn.Write([]byte(protocol.WriteArrayString([]string{"PING"})))
+
+	msg := readData(conn, t)
+	expected := protocol.WriteSimpleString("PONG")
+
+	if !reflect.DeepEqual(msg, expected) {
+		t.Fatalf("Expected: %q, got: %q", expected, msg)
+	}
+
+	defer func() {
+		server.Close()
+		conn.Close()
+	}()
+}
+
+func TestEchoCommand(t *testing.T) {
 	address := "127.0.0.1"
 	port := "6380"
 	server := createAndStartServer(address, port)

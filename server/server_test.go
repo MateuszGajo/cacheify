@@ -41,7 +41,10 @@ func connectToServer(network, address string, t *testing.T) net.Conn {
 }
 
 func createAndStartServer(address, port string) *Server {
-	server := CreateServer(address, port)
+	server := CreateServer(
+		WithPort(port),
+		WithAddress(address),
+	)
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -78,6 +81,7 @@ func setValue(conn net.Conn, key, value string, t *testing.T) {
 		t.Fatalf("Expected: %q, got: %q", expected, msg)
 	}
 }
+
 func setValueWithExp(conn net.Conn, key, value string, expType ExpType, expValueMs int, t *testing.T) {
 	conn.Write([]byte(protocol.WriteArrayString([]string{"SET", key, value, string(expType), strconv.Itoa(expValueMs)})))
 	msg := readData(conn, t)
